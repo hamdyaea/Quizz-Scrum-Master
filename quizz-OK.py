@@ -1,137 +1,86 @@
-#dev Hamdy Abou El Anein
-from tkinter import *
-from tkinter import messagebox 
+#!/usr/bin/env python3
+# Developer: Hamdy Abou El Anein
+# Contact: info@daylightlinux.ch
+# SPDX-License-Identifier: GPL-3.0-only
+"""Five-question historical Scrum quiz with Tkinter."""
+from __future__ import annotations
+from dataclasses import dataclass
+import tkinter as tk
+from tkinter import ttk
 
-class Problem(object):
-  def __init__(self, question = "", a = "", b = "", c = "", correct = ""):
-    object.__init__(self)
-    self.question = question
-    self.a = a
-    self.b = b
-    self.c = c
-    self.correct = correct
-    
-class App(Tk):
-  def __init__(self):
-    Tk.__init__(self)
-    
-    self.problems = []
-    self.counter = 0
+@dataclass(frozen=True)
+class Question:
+    prompt: str
+    options: tuple[str, ...]
+    correct: int
 
-    self.addComponents()
-    self.loadProblems()
-    
-    self.showProblem(0)
-    
-    self.mainloop()
-    
-  def addComponents(self):
+QUESTIONS = (
+    Question("When is a Sprint over?", ("When all tasks are completed.", "When all Product Backlog items are done.", "When the time-box expires."), 2),
+    Question("What is the main reason for the Scrum Master to be at the Daily Scrum?", ("Ensure everyone answers three questions.", "The Scrum Master need not attend but ensures the Daily Scrum takes place.", "Track Sprint Backlog changes and burndown."), 1),
+    Question("The product increment must be released to production at the end of every Sprint.", ("True", "False"), 1),
+    Question("When might a Sprint be cancelled?", ("When tasks cannot be finished.", "When sales has a new opportunity.", "When the Sprint Goal becomes obsolete."), 2),
+    Question("Which statement best describes a Product Owner's responsibility?", ("Maximizing product value.", "Managing project commitments.", "Directing the Development Team."), 0),
+)
 
+def score(answers: dict[int, int], questions=QUESTIONS) -> tuple[int, int]:
+    return sum(answers.get(i) == q.correct for i, q in enumerate(questions)), len(questions)
 
-    self.title("Quiz Scrum Master")
+class Quiz(ttk.Frame):
+    def __init__(self, root: tk.Tk):
+        super().__init__(root, padding=20)
+        self.pack(fill="both", expand=True)
+        self.index = 0
+        self.answers: dict[int, int] = {}
+        self.choice = tk.IntVar(value=-1)
+        self.question = tk.StringVar()
+        self.progress = tk.StringVar()
+        ttk.Label(self, textvariable=self.question, wraplength=650, font=("sans", 13)).pack(anchor="w", pady=12)
+        self.buttons = ttk.Frame(self)
+        self.buttons.pack(fill="x")
+        ttk.Label(self, textvariable=self.progress).pack(pady=12)
+        nav = ttk.Frame(self)
+        nav.pack()
+        ttk.Button(nav, text="Previous", command=lambda: self.navigate(-1)).pack(side="left", padx=8)
+        ttk.Button(nav, text="Next", command=lambda: self.navigate(1)).pack(side="left", padx=8)
+        ttk.Button(nav, text="Finish", command=self.finish).pack(side="left", padx=8)
+        self.show()
 
-    self.grid()
-    self.columnconfigure(0, minsize = 100)
-    self.columnconfigure(1, minsize = 200)
-    self.columnconfigure(2, minsize = 100)
+    def show(self) -> None:
+        question = QUESTIONS[self.index]
+        self.question.set(question.prompt)
+        self.progress.set(f"Question {self.index + 1} of {len(QUESTIONS)}")
+        self.choice.set(self.answers.get(self.index, -1))
+        for widget in self.buttons.winfo_children():
+            widget.destroy()
+        for index, option in enumerate(question.options):
+            ttk.Radiobutton(self.buttons, text=option, variable=self.choice, value=index, command=self.remember).pack(anchor="w", pady=5)
 
-    self.lblQuestion = Label(self, text = "Question")
-    self.lblQuestion.grid(columnspan = 3, sticky = "we")
-    
-    self.btnA = Button(self, text = "A", command = self.checkA)
-    self.btnA.grid(columnspan = 3, sticky = "we")
-    
-    self.btnB = Button(self, text = "B", command = self.checkB)
-    self.btnB.grid(columnspan = 3, sticky = "we")
-    
-    self.btnC = Button(self, text = "C", command = self.checkC)
-    self.btnC.grid(columnspan = 3, sticky = "we")
-    
-    self.btnPrev = Button(self, text = "prev", command = self.prev)
-    self.btnPrev.grid(row = 4, column = 0)
-    
-    self.lblCounter = Label(self, text = "0")
-    self.lblCounter.grid(row = 4, column = 1)
-    
-    self.btnNext = Button(self, text = "next", command = self.next)
-    self.btnNext.grid(row = 4, column = 2)
-    
-  def checkA(self):
-    self.check("A")
+    def remember(self) -> None:
+        self.answers[self.index] = self.choice.get()
 
-  def checkB(self):
-    self.check("B")
+    def navigate(self, offset: int) -> None:
+        self.index = max(0, min(len(QUESTIONS) - 1, self.index + offset))
+        self.show()
 
-  def checkC(self):
-    self.check("C")
-    
-  def check(self, guess):
+    def finish(self) -> None:
+        points, total = score(self.answers)
+        self.question.set(f"Result: {points}/{total} correct")
+        self.progress.set("Questions are based on historical Scrum training materials.")
+        for widget in self.buttons.winfo_children():
+            widget.destroy()
+        ttk.Button(self.buttons, text="Restart", command=self.restart).pack(pady=12)
 
-    correct = self.problems[self.counter].correct
-    if guess == correct:
-      messagebox.showinfo("Quiz", "Good Answer")
-    else:
-      messagebox.showinfo("Quiz", "Wrong answer.")
-      
-  def prev(self):
-    self.counter -= 1
-    if self.counter < 0:
-      self.counter = 0
-    self.showProblem(self.counter)
-    
-  def next(self):
-    self.counter += 1
-    if self.counter >= len(self.problems):
-      self.counter = len(self.problems) - 1
-    self.showProblem(self.counter)
+    def restart(self) -> None:
+        self.answers.clear()
+        self.index = 0
+        self.show()
 
-  def showProblem(self, counter):
-    self.lblQuestion["text"] = self.problems[counter].question
-    self.btnA["text"] = self.problems[counter].a
-    self.btnB["text"] = self.problems[counter].b
-    self.btnC["text"] = self.problems[counter].c
-    self.lblCounter["text"] = self.counter
+def main() -> None:
+    root = tk.Tk()
+    root.title("Scrum Master Quiz")
+    root.geometry("760x400")
+    Quiz(root)
+    root.mainloop()
 
-  def loadProblems(self):
-    self.problems.append(Problem(
-      "When is a Sprint over ?",
-      "When all the tasks are completed.",
-      "When all Product Backlog items meet their definition of done.",
-      "When the time-box expires.",
-      "C"))
-  
-    self.problems.append(Problem(
-      "What is the main reason for the Scrum Master to be at the Daily Scrum?",
-      "To make sure every team member answers the three questions.",
-      "He or she does not have to be there; he or she only has to ensure the Development Team has a Daily Scrum.",
-      "To write down any changes to the Sprint Backlog, including adding new items, and tracking  progress on the burn-down.",
-      "B"))
-  
-    self.problems.append(Problem(
-      "It is mandatory that the product increment be released to production at the end of each Sprint.",
-      "True",
-      "False",
-      "",
-      "B"))
-  
-    self.problems.append(Problem(
-      "When might a Sprint be abnormally terminated?",
-      "When it becomes clear that not everything will be finished by the end of the Sprint.",
-      "When the sales department has an important new opportunity.",
-      "When the Sprint Goal becomes obsolete.",
-      "C"))
-  
-    self.problems.append(Problem(
-      "Which statement best describes a Product Owner's responsibility?",
-      "Optimizing the value of the work the Development Team does.",
-      "Managing the project and ensuring that the work meets the commitments to the stakeholders.",
-      "Directing the Development Team.",
-      "A"))
-  
-    
-def main():
-  a = App()
-  
 if __name__ == "__main__":
-  main()
-  
+    main()
